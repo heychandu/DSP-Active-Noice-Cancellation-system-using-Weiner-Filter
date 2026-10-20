@@ -1,65 +1,85 @@
-# Active Noise Cancellation Using a Wiener Filter — V0.1
+# Active Noise Cancellation Using a Wiener Filter
 
-Version 0.1 is the foundation of the MATLAB audio-processing project. It loads a noisy audio file, displays its waveform, reports basic audio properties, and plays the original signal. No noise reduction is applied in this version; this gives us a baseline to compare against later versions.
+A MATLAB DSP project developed incrementally, version by version.
+
+## Current milestone: V0.2 — Noise Analysis
+
+V0.2 extends the V0.1 audio-input baseline with waveform inspection and average single-sided frequency-spectrum analysis. It does not denoise or modify the source audio; the purpose is to understand the input before designing the filter.
 
 ## Project status
 
-- **Version:** `v0.1.0`
-- **Stage:** Basic audio input and playback
+- **Current version:** `v0.2.0`
 - **Language:** MATLAB
-- **Input:** WAV, FLAC, MP3, M4A, and other formats supported by your MATLAB installation
-- **Output:** Original audio playback and a waveform plot
+- **Input:** An audio recording supported by MATLAB `audioread`
+- **V0.2 output:** Basic measurements, waveform plot, frequency-spectrum plot, and original audio playback
+- **Source audio:** Read only; not overwritten
 
 ## Requirements
 
 - MATLAB
-- An audio file that you are allowed to use
-- GitHub Desktop (for version control; optional until you want to publish)
+- A local audio recording you are permitted to use
+- Git and GitHub Desktop for version control
 
-## Run the program
+## Run V0.2
 
-1. Download or clone this repository.
-2. Open MATLAB.
-3. Set MATLAB's Current Folder to `src/v0.1-basic-audio`.
-4. Run `v01_load_and_play_audio.m`.
-5. In the file picker, choose a noisy audio file.
-6. Review the waveform and listen to the original audio.
+1. Open the repository in MATLAB.
+2. Set MATLAB's Current Folder to `src/v0.2-noise-analysis`.
+3. Run `v02_noise_analysis.m`.
+4. Select an audio file in the file picker.
+5. Inspect the waveform and frequency-spectrum plots, then listen to the original recording.
 
-The script does not overwrite or modify your source audio file.
+To run the V0.1 baseline instead, open `src/v0.1-basic-audio` and run `v01_load_and_play_audio.m`.
+
+## What V0.2 analyzes
+
+- Sample rate, duration, sample count, and channel count
+- Peak and RMS amplitude for each channel
+- Waveform for each input channel
+- Average single-sided amplitude spectrum computed with a Hann window and overlapping frames
+- Strongest non-DC spectrum bin for each channel
+
+V0.2 uses standard MATLAB operations and does not intentionally require Signal Processing Toolbox functions.
+
+### Interpreting the spectrum
+
+A strong frequency peak is not necessarily noise: it could be part of speech, music, or the desired signal. V0.2 does not automatically identify noise and does not calculate SNR. Meaningful quantitative denoising measurements require a suitable clean reference or a known noise-only region.
 
 ## Repository structure
 
 ```text
-active-noise-cancellation-wiener/
+DSP-Active-Noice-Cancellation-system-using-Weiner-Filter/
 ├── README.md
-├── .gitignore
 ├── LICENSE
+├── .gitignore
 ├── docs/
 │   └── version-history.md
 └── src/
-    └── v0.1-basic-audio/
-        └── v01_load_and_play_audio.m
+    ├── v0.1-basic-audio/
+    │   └── v01_load_and_play_audio.m
+    └── v0.2-noise-analysis/
+        └── v02_noise_analysis.m
 ```
 
 ## Version roadmap
 
-| Version | Planned milestone |
-|---|---|
-| V0.1 | Load, inspect, and play original audio |
-| V0.2 | Waveform and frequency-spectrum analysis |
-| V0.3 | First Wiener-filter noise-reduction implementation |
-| V0.4 | Original/processed preview, then Save / Refilter / Cancel |
-| V0.5 | Live microphone processing experiment |
-| V1.0 | Tested and documented project release |
+| Version | Milestone | Status |
+|---|---|---|
+| V0.1 | Load, inspect, plot, and play original audio | Implemented |
+| V0.2 | Waveform and frequency-spectrum analysis | Implemented |
+| V0.3 | First Wiener-filter noise-reduction implementation | Planned |
+| V0.4 | Original/processed preview; Save / Refilter / Cancel | Planned |
+| V0.5 | Live microphone processing experiment | Planned |
+| V1.0 | Tested and documented project release | Planned |
 
-**DSP note:** Wiener filtering of a single noisy recording is commonly used for noise reduction, while adaptive ANC typically uses a reference noise signal and an adaptive filter. The README and results for each version should describe the method actually implemented.
+## DSP terminology note
+
+Wiener filtering a noisy recording is commonly used for noise reduction. Adaptive active noise cancellation typically uses a reference noise signal and an adaptive controller. Later versions will document the exact method that is implemented and tested.
 
 ## Troubleshooting
 
 - If `audioread` cannot open a file, try a WAV file first.
-- If playback is too loud or too quiet, adjust your system volume; this version intentionally does not normalize the audio.
-- If MATLAB reports that `audioread` is unavailable, check your MATLAB version and installed toolboxes.
-- Large audio files should generally not be committed to Git. Keep test files small or document where permitted sample audio can be obtained.
+- If audio playback is too quiet or loud, adjust your system volume; V0.2 does not normalize the source.
+- Large audio files should generally not be committed to Git. Use small, permitted test samples or document where sample audio can be obtained.
 
 ## Version history
 
