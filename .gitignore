@@ -5,18 +5,16 @@ slprj/
 codegen/
 *.mex*
 *.mat
-
-# MATLAB autosave and editor files
 *.mlx.autosave
 
-# Audio recordings and generated output (add only small, permitted samples intentionally)
+# Keep recordings/results out of Git unless a small, permitted sample is intentionally added
 *.wav
 *.flac
 *.mp3
 *.m4a
 *.aac
 
-# OS/editor noise
+# OS/editor files
 .DS_Store
 Thumbs.db
 .vscode/

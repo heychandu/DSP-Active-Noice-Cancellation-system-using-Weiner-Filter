@@ -12,14 +12,6 @@
 - Play the original audio.
 - Leave the input file unchanged.
 
-### Not included in V0.1
-- Wiener filtering
-- Noise estimation
-- Processed-audio preview
-- Save / Refilter / Cancel workflow
-- Live microphone capture
-- Quantitative denoising metrics
-
 ### Validation checklist
 - [ ] Script runs without errors.
 - [ ] File picker opens and accepts a supported audio file.
@@ -32,17 +24,17 @@
 **Goal:** Inspect the input in time and frequency before introducing a filter.
 
 ### Included
-- Print sample rate, channel count, duration, sample count, peak amplitude, and RMS amplitude.
+- Print sample rate, channel count, duration, peak amplitude, and RMS amplitude.
 - Plot each input channel's waveform.
-- Estimate an average single-sided amplitude spectrum using a Hann window and 50% overlapping frames.
+- Estimate average single-sided amplitude spectrum using a Hann window and overlapping frames.
 - Report the strongest non-DC spectrum bin for each channel.
 - Play the original audio for listening reference.
 - Leave the source file unchanged; no noise reduction is applied.
 
 ### Notes
 - The peak frequency is descriptive only and may be part of the desired signal.
-- Spectrum magnitudes are not an SNR measurement and do not guarantee noise identification.
-- V0.2 uses standard MATLAB functions and does not intentionally require Signal Processing Toolbox functions.
+- Spectrum magnitudes are not an SNR or a guaranteed measure of noise.
+- V0.2 uses built-in MATLAB operations and does not intentionally require Signal Processing Toolbox functions.
 
 ### Validation checklist
 - [ ] Script runs without errors.

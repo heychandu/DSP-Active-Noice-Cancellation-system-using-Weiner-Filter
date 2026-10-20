@@ -67,8 +67,11 @@ title(sprintf('Original Audio Waveform: %s', fileName), ...
     'Interpreter', 'none');
 
 if numChannels > 1
-    legend(compose('Channel %d', 1:numChannels), ...
-        'Location', 'best');
+    channelLabels = cell(1, numChannels);
+    for channel = 1:numChannels
+        channelLabels{channel} = sprintf('Channel %d', channel);
+    end
+    legend(channelLabels, 'Location', 'best');
 end
 
 %% 5. Play the original audio
