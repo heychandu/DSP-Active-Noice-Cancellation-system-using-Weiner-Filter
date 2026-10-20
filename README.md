@@ -45,7 +45,7 @@ If the Save dialog is cancelled or saving fails, the script returns to the previ
 
 ## Important tuning notes
 
-- The first five seconds should ideally contain background noise with little or no speech/music. The code estimates noise from the start of the current input for each pass, so a speech-heavy first segment can damage the result.
+- The first `noiseDuration` seconds from the start of the current input are used as the noise profile (5 seconds by default). The current GUI does not let you choose a different start offset. Keep the start of your recording noise-only, or change the implementation before using a file where speech starts immediately; changing `noiseDuration` changes the length, not the start position.
 - `initialSuppression`, `initialGateThreshold`, and `initialMinimumGain` control the first pass. Refilter uses gentler settings.
 - The preview uses a shared playback scale for both compared signals rather than normalizing them separately.
 - Repeated filtering can progressively damage wanted audio. Compare each pass and stop when the result is acceptable.
