@@ -24,17 +24,12 @@
 **Goal:** Inspect the input in time and frequency before introducing a filter.
 
 ### Included
-- Print sample rate, channel count, duration, peak amplitude, and RMS amplitude.
+- Print sample rate, channel count, duration, sample count, peak amplitude, and RMS amplitude.
 - Plot each input channel's waveform.
-- Estimate average single-sided amplitude spectrum using a Hann window and overlapping frames.
+- Estimate an average single-sided amplitude spectrum using a Hann window and 50% overlapping frames.
 - Report the strongest non-DC spectrum bin for each channel.
 - Play the original audio for listening reference.
 - Leave the source file unchanged; no noise reduction is applied.
-
-### Notes
-- The peak frequency is descriptive only and may be part of the desired signal.
-- Spectrum magnitudes are not an SNR or a guaranteed measure of noise.
-- V0.2 uses built-in MATLAB operations and does not intentionally require Signal Processing Toolbox functions.
 
 ### Validation checklist
 - [ ] Script runs without errors.
@@ -43,3 +38,31 @@
 - [ ] Printed audio properties are plausible.
 - [ ] Original audio plays.
 - [ ] Original file remains unchanged.
+
+## V0.3.0 — First Wiener noise-reduction filter
+
+**Goal:** Add an offline spectral Wiener-filter baseline using a noise-only section of the input recording.
+
+### Included
+- Ask the user for a noise-only segment start/duration and minimum gain.
+- Estimate per-channel noise power by averaging windowed FFT-frame power.
+- Apply frame-based spectral Wiener gain with frame-to-frame gain smoothing.
+- Reconstruct audio using inverse FFT and weighted overlap-add.
+- Plot input and filtered waveforms and compare average magnitude spectra.
+- Print input/filtered peak and RMS amplitude.
+- Offer playback of original then filtered audio.
+- Do not save or overwrite the source audio.
+
+### Known limitations
+- The estimated noise section must not contain desired speech/music.
+- Filtering may remove desired sound when its frequency content overlaps the estimated noise.
+- This is file-based noise reduction, not adaptive reference-signal ANC.
+- Listen and validate locally before treating this milestone as a tested release.
+
+### Validation checklist
+- [ ] MATLAB script runs without errors.
+- [ ] Parameter dialog accepts valid noise-only segment values.
+- [ ] Invalid/cancelled parameter input exits safely.
+- [ ] Input and filtered waveform/spectrum plots appear.
+- [ ] Filtered playback can be compared with original playback.
+- [ ] Source file remains unchanged.
