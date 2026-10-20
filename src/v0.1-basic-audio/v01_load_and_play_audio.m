@@ -1,6 +1,5 @@
 %% Active Noise Cancellation Using a Wiener Filter
 % Version 0.1: Load, inspect, plot, and play the original noisy audio.
-% This version establishes the baseline. It does NOT filter or modify audio.
 
 clc;
 clear;
@@ -13,7 +12,6 @@ close all;
      '*.*', 'All files (*.*)'}, ...
     'Select a noisy audio file');
 
-% Stop safely if the user cancels the file picker.
 if isequal(fileName, 0)
     disp('No file selected. Program cancelled.');
     return;
