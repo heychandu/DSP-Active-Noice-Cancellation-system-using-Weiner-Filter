@@ -1,425 +1,336 @@
-%% Active Noise Cancellation Using a Wiener Filter
-% Version 0.4: Preview, Refilter, Save, or Cancel.
-%
-% This is offline, single-recording spectral noise reduction, not adaptive
-% ANC with a separate reference-noise input.
-%
-% Workflow:
-%   1. Select noisy audio.
-%   2. Estimate noise from a chosen noise-only segment.
-%   3. Play the current input, then play the filtered result.
-%   4. Save, Refilter, or Cancel.
-%   5. Refilter starts from the PREVIOUSLY FILTERED signal, never the
-%      original recording.
-%
-% The source file is never overwritten.
-
 clc;
 clear;
 close all;
 
-%% 1. Select the input audio
-[fileName, folderPath] = uigetfile( ...
-    {'*.wav;*.flac;*.mp3;*.m4a;*.aac', ...
-     'Supported audio files (*.wav, *.flac, *.mp3, *.m4a, *.aac)'; ...
-     '*.*', 'All files (*.*)'}, ...
-    'Select a noisy audio file');
+%% V0.4: Wiener Noise Reduction with Preview / Refilter / Save / Cancel
+% This is offline, single-recording noise reduction. It is not adaptive
+% feedforward ANC with a separate reference-noise input.
+%
+% The first pass previews the original audio, then the filtered result.
+% After Refilter, it previews the previously denoised signal, then the
+% newly processed signal. Refilter always starts from the latest output.
+% The source audio file is never overwritten.
 
-if isequal(fileName, 0)
-    disp('No file selected. Program cancelled.');
+%% 1. LOAD AUDIO
+[file, path] = uigetfile( ...
+    {'*.wav;*.flac;*.mp3;*.m4a', 'Audio Files'}, ...
+    'Select Noisy Audio');
+
+if isequal(file, 0)
+    disp('No file selected.');
     return;
 end
 
-sourcePath = fullfile(folderPath, fileName);
-
+sourcePath = fullfile(path, file);
 try
-    [originalAudio, sampleRate] = audioread(sourcePath);
+    [x, Fs] = audioread(sourcePath);
 catch ME
-    errordlg(sprintf('Could not read the selected audio file:\n%s', ...
-        ME.message), 'Audio Read Error');
+    errordlg(sprintf('Could not read the selected audio:\n%s', ME.message), ...
+        'Audio Read Error');
     rethrow(ME);
 end
 
-if isempty(originalAudio) || size(originalAudio, 1) < 64
-    errordlg('Choose an audio file containing at least 64 samples.', ...
-        'Audio Too Short');
-    return;
+if isempty(x) || any(~isfinite(x(:)))
+    error('Invalid audio file.');
 end
 
-[numSamples, numChannels] = size(originalAudio);
-durationSeconds = numSamples / sampleRate;
-[~, sourceBaseName, ~] = fileparts(fileName);
+% Convert stereo audio to mono
+if size(x, 2) > 1
+    xMono = mean(x, 2);
+else
+    xMono = x(:);
+end
+xMono = double(xMono);
+xMono = xMono - mean(xMono);
+original = xMono;
 
-%% 2. Choose analysis frame size
-% Approximately 25 ms frames, with bounds for unusual sample rates and
-% short recordings. Keep the frame no longer than half the full recording
-% so there is room for a noise-only region.
-frameLength = 2^round(log2(0.025 * sampleRate));
-frameLength = max(64, min(2048, frameLength));
-largestAllowedFrame = 2^floor(log2(floor(numSamples / 2)));
-frameLength = min(frameLength, largestAllowedFrame);
+fprintf('Sample rate: %d Hz\n', Fs);
+fprintf('Duration: %.2f seconds\n', length(original) / Fs);
 
-if frameLength < 32 || numSamples < frameLength
-    errordlg('The recording is too short for the selected filter.', ...
-        'Audio Too Short');
-    return;
+%% 2. HIGH-PASS FILTER
+hpCutoff = 55;
+if hpCutoff < Fs / 2
+    [bHP, aHP] = butter(3, hpCutoff / (Fs / 2), 'high');
+    x = filtfilt(bHP, aHP, xMono);
+else
+    x = xMono;
 end
 
-hopLength = max(1, floor(frameLength / 2));
-window = 0.54 - 0.46 * cos(2 * pi * (0:frameLength-1)' / ...
-    (frameLength - 1));  % Hamming window
-windowSum = sum(window);
+%% 3. MANUAL HUM NOTCH FILTERS
+removeHum = true;
+if removeHum
+    mainsHz = 50;
+    Q = 35;
+    for f0 = mainsHz:mainsHz:200
+        if f0 >= Fs / 2 - 1
+            break;
+        end
+        w0 = 2 * pi * f0 / Fs;
+        r = exp(-pi * f0 / (Q * Fs));
+        bN = [1, -2 * cos(w0), 1];
+        aN = [1, -2 * r * cos(w0), r^2];
+        bN = bN * sum(aN) / sum(bN);
+        x = filtfilt(bN, aN, x);
+    end
+end
+filteredInput = x;
 
-%% 3. Iterative preview/refilter loop
-% The first pass input is the original. After Refilter, currentInput is
-% replaced with the latest filtered result. Source duration stays constant.
-currentInput = originalAudio;
+%% 4. NOISE PROFILE SETTINGS
+% The first 5 seconds should ideally contain background noise with little
+% or no desired speech/music. The profile is re-estimated for each pass.
+noiseDuration = 5;
+if length(filteredInput) / Fs < noiseDuration
+    error(['Audio must be at least 5 seconds long. ', ...
+        'Reduce noiseDuration for shorter recordings.']);
+end
+
+%% 5. STFT SETTINGS
+winLength = 1024;
+overlap = 768;
+nfft = 1024;
+win = hamming(winLength, 'periodic');
+
+%% 6. WIENER FILTER SETTINGS
+% Initial pass settings
+initialSuppression = 1.8;
+initialGateThreshold = 0.25;
+initialMinimumGain = 0.10;
+
+% Refilter settings (gentler to preserve speech)
+refilterSuppression = 1.25;
+refilterGateThreshold = 0.12;
+refilterMinimumGain = 0.25;
+
+%% 7. INITIAL WIENER FILTER PASS
+fprintf('\nRunning initial Wiener filter...\n');
+currentInput = filteredInput;
+processedAudio = runWienerPass( ...
+    currentInput, Fs, win, overlap, nfft, ...
+    noiseDuration, initialSuppression, ...
+    initialGateThreshold, initialMinimumGain);
 passNumber = 1;
-plotFigure = [];
 
+% First comparison: original -> first filtered result.
+% After Refilter, previewInput becomes the previous denoised result.
+previewInput = original;
+
+%% 8. PREVIEW AND USER DECISION LOOP
 while true
-    %% 3a. Get and validate parameters for this pass
-    defaultNoiseDuration = min(0.5, max(frameLength / sampleRate, ...
-        durationSeconds / 4));
-    defaultNoiseDuration = min(defaultNoiseDuration, durationSeconds * 0.75);
-
-    prompt = { ...
-        'Noise-only segment start time (seconds):', ...
-        'Noise-only segment duration (seconds):', ...
-        'Minimum Wiener gain (0 to 1):'};
-    defaults = {'0', sprintf('%.9f', defaultNoiseDuration), '0.05'};
-
-    parametersValid = false;
-    while ~parametersValid
-        answers = inputdlg(prompt, ...
-            sprintf('V0.4 Wiener Filter Parameters - Pass %d', passNumber), ...
-            [1 52; 1 52; 1 52], defaults);
-
-        if isempty(answers)
-            disp('Parameter entry cancelled. No output has been saved.');
-            return;
-        end
-
-        parameters = zeros(1, numel(answers));
-        for k = 1:numel(answers)
-            parameters(k) = str2double(answers{k});
-        end
-
-        if any(isnan(parameters)) || any(isinf(parameters))
-            errordlg('Enter valid numeric values for all parameters.', ...
-                'Invalid Parameters');
-            defaults = answers;
-            continue;
-        end
-
-        noiseStartSeconds = parameters(1);
-        noiseDurationSeconds = parameters(2);
-        minimumGain = parameters(3);
-
-        if noiseStartSeconds < 0 || noiseDurationSeconds <= 0 || ...
-                minimumGain < 0 || minimumGain > 1
-            errordlg(['Start time must be >= 0, duration must be > 0, ' ...
-                'and minimum gain must be between 0 and 1.'], ...
-                'Invalid Parameters');
-            defaults = answers;
-            continue;
-        end
-
-        noiseStartIndex = floor(noiseStartSeconds * sampleRate) + 1;
-        noiseEndIndex = floor((noiseStartSeconds + noiseDurationSeconds) ...
-            * sampleRate);
-
-        if noiseStartIndex < 1 || noiseEndIndex > numSamples || ...
-                noiseEndIndex < noiseStartIndex
-            errordlg('The noise-only segment is outside the audio file.', ...
-                'Invalid Noise Segment');
-            defaults = answers;
-            continue;
-        end
-
-        noiseSamples = noiseEndIndex - noiseStartIndex + 1;
-        if noiseSamples < frameLength
-            errordlg(sprintf(['The noise-only segment must be at least ' ...
-                '%.3f seconds long for the current frame size.'], ...
-                frameLength / sampleRate), 'Noise Segment Too Short');
-            defaults = answers;
-            continue;
-        end
-
-        parametersValid = true;
+    if isempty(processedAudio) || ...
+            any(~isfinite(processedAudio)) || ...
+            max(abs(processedAudio)) < 1e-8
+        errordlg('Processed audio is silent or invalid.', ...
+            'Processing Error');
+        break;
     end
 
-    noiseOnly = currentInput(noiseStartIndex:noiseEndIndex, :);
-
-    %% 3b. Estimate the noise power for each channel
-    noiseFrameStarts = 1:hopLength:(noiseSamples - frameLength + 1);
-    numNoiseFrames = numel(noiseFrameStarts);
-    noisePower = zeros(frameLength, numChannels);
-
-    for channel = 1:numChannels
-        accumulatedNoisePower = zeros(frameLength, 1);
-
-        for noiseFrameIndex = 1:numNoiseFrames
-            firstSample = noiseFrameStarts(noiseFrameIndex);
-            lastSample = firstSample + frameLength - 1;
-            noiseFrame = noiseOnly(firstSample:lastSample, channel);
-            noiseFFT = fft(noiseFrame .* window);
-            accumulatedNoisePower = accumulatedNoisePower + abs(noiseFFT).^2;
-        end
-
-        noisePower(:, channel) = accumulatedNoisePower / numNoiseFrames;
-    end
-
-    %% 3c. Apply Wiener gain to the current input and overlap-add
-    frameStarts = (-frameLength + 1):hopLength:numSamples;
-    numFrames = numel(frameStarts);
-
-    outputAccumulation = zeros(numSamples, numChannels);
-    weightAccumulation = zeros(numSamples, 1);
-    previousGain = ones(frameLength, numChannels);
-
-    numSpectrumBins = floor(frameLength / 2) + 1;
-    inputMagnitudeSum = zeros(numSpectrumBins, numChannels);
-    outputMagnitudeSum = zeros(numSpectrumBins, numChannels);
-    gainSmoothing = 0.70;
-
-    for frameIndex = 1:numFrames
-        frameStart = frameStarts(frameIndex);
-        sourceIndices = frameStart + (0:frameLength-1);
-        validMask = sourceIndices >= 1 & sourceIndices <= numSamples;
-        validSourceIndices = sourceIndices(validMask);
-        validWindowPositions = find(validMask);
-
-        for channel = 1:numChannels
-            inputFrame = zeros(frameLength, 1);
-            inputFrame(validWindowPositions) = ...
-                currentInput(validSourceIndices, channel);
-
-            windowedFrame = inputFrame .* window;
-            inputFFT = fft(windowedFrame);
-            observedPower = abs(inputFFT).^2;
-
-            estimatedSignalPower = max( ...
-                observedPower - noisePower(:, channel), 0);
-            rawGain = estimatedSignalPower ./ max(observedPower, eps);
-            rawGain = max(min(rawGain, 1), minimumGain);
-
-            if frameIndex == 1
-                smoothedGain = rawGain;
-            else
-                smoothedGain = gainSmoothing * ...
-                    previousGain(:, channel) + ...
-                    (1 - gainSmoothing) * rawGain;
-            end
-            previousGain(:, channel) = smoothedGain;
-
-            filteredFFT = smoothedGain .* inputFFT;
-            filteredFrame = real(ifft(filteredFFT));
-            synthesisFrame = filteredFrame .* window;
-
-            outputAccumulation(validSourceIndices, channel) = ...
-                outputAccumulation(validSourceIndices, channel) + ...
-                synthesisFrame(validWindowPositions);
-
-            inputMagnitudeSum(:, channel) = ...
-                inputMagnitudeSum(:, channel) + ...
-                abs(inputFFT(1:numSpectrumBins));
-            outputMagnitudeSum(:, channel) = ...
-                outputMagnitudeSum(:, channel) + ...
-                abs(filteredFFT(1:numSpectrumBins));
-        end
-
-        weightAccumulation(validSourceIndices) = ...
-            weightAccumulation(validSourceIndices) + ...
-            window(validWindowPositions).^2;
-    end
-
-    filteredAudio = bsxfun(@rdivide, outputAccumulation, ...
-        max(weightAccumulation, eps));
-
-    %% 3d. Summarize this pass
-    fprintf('\n====================================================\n');
-    fprintf(' Wiener Noise Reduction - V0.4, Pass %d\n', passNumber);
-    fprintf('====================================================\n');
-    fprintf('Current input duration: %.3f seconds\n', durationSeconds);
-    fprintf('Sample rate           : %d Hz\n', sampleRate);
-    fprintf('Channels              : %d\n', numChannels);
-    fprintf('Frame length          : %d samples (%.2f ms)\n', ...
-        frameLength, 1000 * frameLength / sampleRate);
-    fprintf('Noise-only segment    : %.3f to %.3f seconds\n', ...
-        noiseStartSeconds, noiseStartSeconds + noiseDurationSeconds);
-    fprintf('Minimum gain          : %.3f\n', minimumGain);
-
-    for channel = 1:numChannels
-        inputRMS = sqrt(mean(currentInput(:, channel).^2));
-        outputRMS = sqrt(mean(filteredAudio(:, channel).^2));
-        fprintf('Channel %d RMS: current input %.5f | filtered %.5f\n', ...
-            channel, inputRMS, outputRMS);
-    end
-
-    %% 3e. Plot this pass input, output, and average spectra
-    inputSpectrum = inputMagnitudeSum / (numFrames * windowSum);
-    outputSpectrum = outputMagnitudeSum / (numFrames * windowSum);
-
-    if rem(frameLength, 2) == 0
-        if numSpectrumBins > 2
-            inputSpectrum(2:end-1, :) = 2 * inputSpectrum(2:end-1, :);
-            outputSpectrum(2:end-1, :) = 2 * outputSpectrum(2:end-1, :);
-        end
-    else
-        inputSpectrum(2:end, :) = 2 * inputSpectrum(2:end, :);
-        outputSpectrum(2:end, :) = 2 * outputSpectrum(2:end, :);
-    end
-
-    frequencyHz = (0:numSpectrumBins-1)' * sampleRate / frameLength;
-    maxPlotPoints = 200000;
-    displayStride = max(1, ceil(numSamples / maxPlotPoints));
-    sampleIndices = (1:displayStride:numSamples)';
-    timeSeconds = (sampleIndices - 1) / sampleRate;
-
-    channelLabels = cell(1, numChannels);
-    spectrumLabels = cell(1, 2 * numChannels);
-    for channel = 1:numChannels
-        channelLabels{channel} = sprintf('Current Ch %d', channel);
-        spectrumLabels{2*channel-1} = sprintf('Current Ch %d', channel);
-        spectrumLabels{2*channel} = sprintf('Filtered Ch %d', channel);
-    end
-
-    if ~isempty(plotFigure) && isgraphics(plotFigure)
-        close(plotFigure);
-    end
-    plotFigure = figure('Name', ...
-        sprintf('V0.4 - Wiener Filter Pass %d', passNumber), ...
-        'NumberTitle', 'off', 'Color', 'w');
-
-    subplot(3, 1, 1);
-    hold on;
-    for channel = 1:numChannels
-        plot(timeSeconds, currentInput(sampleIndices, channel), ...
-            'LineWidth', 0.8);
-    end
-    hold off;
-    grid on;
-    xlabel('Time (seconds)');
-    ylabel('Amplitude');
-    title(sprintf('Current Input Before Pass %d', passNumber));
-    legend(channelLabels, 'Location', 'best');
-
-    subplot(3, 1, 2);
-    hold on;
-    for channel = 1:numChannels
-        plot(timeSeconds, filteredAudio(sampleIndices, channel), ...
-            'LineWidth', 0.8);
-    end
-    hold off;
-    grid on;
-    xlabel('Time (seconds)');
-    ylabel('Amplitude');
-    title(sprintf('Filtered Result After Pass %d', passNumber));
-    legend(channelLabels, 'Location', 'best');
-
-    subplot(3, 1, 3);
-    hold on;
-    for channel = 1:numChannels
-        inputDb = 20 * log10(max(inputSpectrum(:, channel), eps));
-        outputDb = 20 * log10(max(outputSpectrum(:, channel), eps));
-        plot(frequencyHz, inputDb, 'LineWidth', 0.9);
-        plot(frequencyHz, outputDb, '--', 'LineWidth', 0.9);
-    end
-    hold off;
-    grid on;
-    xlabel('Frequency (Hz)');
-    ylabel('Magnitude (dB re: unit amplitude)');
-    title('Average Single-Sided Spectrum: Current Input vs Filtered');
-    xlim([0, sampleRate / 2]);
-    legend(spectrumLabels, 'Location', 'best');
-
-    %% 3f. Audition current input first, then filtered output
-    % A single shared playback gain is used for both clips on this pass.
-    % This avoids independently normalizing them and preserves their level
-    % difference for fair listening. Playback gain never affects saved data.
-    playbackPeak = max(abs(currentInput(:)));
+    %% Play input for this comparison
+    % Use one shared playback scale. soundsc independently normalizes each
+    % clip and can make level differences misleading.
+    comparisonPeak = max([abs(previewInput(:)); abs(processedAudio(:))]);
     playbackGain = 1;
-    if playbackPeak > 0 && playbackPeak < 0.08
-        playbackGain = min(8, 0.8 / playbackPeak);
+    if comparisonPeak > 0.98
+        playbackGain = 0.98 / comparisonPeak;
     end
 
-    try
-        fprintf('Playing current input before pass %d...\n', passNumber);
-        inputPlayer = audioplayer(currentInput * playbackGain, sampleRate);
-        playblocking(inputPlayer);
+    if passNumber == 1
+        disp('Playing original audio...');
+    else
+        fprintf('Playing previously denoised audio before pass %d...\n', ...
+            passNumber);
+    end
+    sound(previewInput * playbackGain, Fs);
+    pause(length(previewInput) / Fs + 0.8);
 
-        fprintf('Playing filtered output after pass %d...\n', passNumber);
-        outputPlayer = audioplayer(filteredAudio * playbackGain, sampleRate);
-        playblocking(outputPlayer);
-    catch playbackError
-        warning('Playback could not complete: %s', playbackError.message);
-        warndlg(['Audio playback encountered a problem. Review the plots ' ...
-            'before choosing an action.'], 'Playback Warning');
+    %% Play latest noise-reduced audio
+    fprintf('Playing noise-reduced audio after pass %d...\n', passNumber);
+    sound(processedAudio * playbackGain, Fs);
+    pause(length(processedAudio) / Fs + 0.8);
+
+    %% Popup AFTER both previews
+    choice = questdlg( ...
+        sprintf(['Preview completed after pass %d.\n\n', ...
+        'You have heard the comparison signals.\n\n', ...
+        'Save: Save the current result\n', ...
+        'Refilter: Apply another Wiener pass\n', ...
+        'Cancel: Exit without saving'], passNumber), ...
+        'Compare Audio Results', ...
+        'Save', 'Refilter', 'Cancel', 'Save');
+
+    if isempty(choice)
+        choice = 'Cancel';
     end
 
-    %% 3g. After preview, choose Save, Refilter, or Cancel
-    actionCompleted = false;
-    while ~actionCompleted
-        action = questdlg( ...
-            sprintf(['Pass %d preview finished.\n\n' ...
-            'Save: write this filtered result to a new WAV file.\n' ...
-            'Refilter: process this filtered result again.\n' ...
-            'Cancel: exit without saving this result.'], passNumber), ...
-            'V0.4 - Save, Refilter, or Cancel', ...
-            'Save', 'Refilter', 'Cancel', 'Save');
+    switch choice
+        case 'Save'
+            [saveFile, savePath] = uiputfile( ...
+                {'*.wav', 'WAV Audio (*.wav)'; ...
+                 '*.mp3', 'MP3 Audio (*.mp3)'}, ...
+                'Save Noise-Reduced Audio', ...
+                'Advanced_Noise_Reduced.wav');
 
-        if isempty(action) || strcmp(action, 'Cancel')
-            disp('Cancelled. No new output file was saved.');
-            return;
-        elseif strcmp(action, 'Refilter')
-            % Critical behavior: next pass uses the PREVIOUS filtered signal.
-            currentInput = filteredAudio;
-            passNumber = passNumber + 1;
-            fprintf(['Refilter selected: pass %d will start from the ' ...
-                'previously filtered audio, not the original.\n'], passNumber);
-            actionCompleted = true;
-        elseif strcmp(action, 'Save')
-            suggestedName = sprintf('%s_wiener_denoised.wav', sourceBaseName);
-            [saveName, saveFolder] = uiputfile( ...
-                {'*.wav', 'WAV audio (*.wav)'}, ...
-                'Save the current filtered audio', suggestedName);
-
-            if isequal(saveName, 0)
-                disp('Save dialog closed. Choose Save, Refilter, or Cancel.');
+            if isequal(saveFile, 0)
+                disp('Save dialog cancelled. Returning to preview.');
                 continue;
             end
 
-            outputPath = fullfile(saveFolder, saveName);
-            if strcmpi(outputPath, sourcePath)
-                errordlg(['The output path matches the source audio. ' ...
-                    'Choose a different filename to protect the original.'], ...
+            outputFile = fullfile(savePath, saveFile);
+
+            % Protect the selected source against accidental overwrite.
+            if strcmpi(outputFile, sourcePath)
+                errordlg(['The output path matches the original input file. ', ...
+                    'Choose a different filename.'], ...
                     'Source File Protected');
                 continue;
             end
 
-            audioToSave = filteredAudio;
-            if any(abs(audioToSave(:)) > 1)
-                warning(['Filtered samples exceeded the WAV full-scale range. ' ...
-                    'Values outside [-1, 1] will be clipped when saved.']);
-                audioToSave = min(max(audioToSave, -1), 1);
-            end
-
             try
-                audiowrite(outputPath, audioToSave, sampleRate);
-            catch saveError
-                errordlg(sprintf('Could not save the filtered audio:\n%s', ...
-                    saveError.message), 'Save Error');
+                audiowrite(outputFile, processedAudio, Fs);
+                fprintf('\nAudio saved successfully:\n%s\n', outputFile);
+                msgbox(sprintf( ...
+                    'Noise-reduced audio saved successfully!\n\n%s', ...
+                    outputFile), 'Save Complete', 'help');
+                disp('Processing finished.');
+                break;
+            catch ME
+                errordlg(sprintf('Could not save the audio:\n%s', ...
+                    ME.message), 'Save Error');
                 continue;
             end
 
-            fprintf('Filtered audio saved to: %s\n', outputPath);
-            msgbox(sprintf('Filtered audio saved successfully:\n%s', ...
-                outputPath), 'Save Complete', 'modal');
-            return;
-        end
+        case 'Refilter'
+            % Refilter and next preview use the previously filtered output.
+            previewInput = processedAudio;
+            currentInput = processedAudio;
+            passNumber = passNumber + 1;
+
+            fprintf('\nStarting Wiener refilter pass %d...\n', passNumber);
+            processedAudio = runWienerPass( ...
+                currentInput, Fs, win, overlap, nfft, ...
+                noiseDuration, refilterSuppression, ...
+                refilterGateThreshold, refilterMinimumGain);
+            fprintf('Refilter pass %d completed.\n', passNumber);
+            continue;
+
+        otherwise
+            disp('Cancelled. Audio was not saved.');
+            break;
+    end
+    break;
+end
+
+%% 9. FINAL WAVEFORM AND SPECTROGRAM COMPARISON
+if exist('processedAudio', 'var') && ~isempty(processedAudio)
+    L = min(length(original), length(processedAudio));
+
+    figure('Color', 'w', 'Name', 'Noise Reduction Comparison');
+    subplot(2, 1, 1);
+    plot((0:L-1) / Fs, original(1:L));
+    title('Original Audio');
+    xlabel('Time (seconds)');
+    ylabel('Amplitude');
+    grid on;
+
+    subplot(2, 1, 2);
+    plot((0:L-1) / Fs, processedAudio(1:L));
+    title(sprintf('Noise-Reduced Audio - Pass %d', passNumber));
+    xlabel('Time (seconds)');
+    ylabel('Amplitude');
+    grid on;
+
+    figure('Color', 'w', 'Name', 'Spectrogram Comparison');
+    subplot(2, 1, 1);
+    spectrogram(original, win, overlap, nfft, Fs, 'yaxis');
+    title('Original Audio');
+
+    subplot(2, 1, 2);
+    spectrogram(processedAudio, win, overlap, nfft, Fs, 'yaxis');
+    title(sprintf('Processed Audio - Pass %d', passNumber));
+end
+disp('Finished.');
+
+%% LOCAL FUNCTION: ONE WIENER FILTER PASS
+function y = runWienerPass( ...
+    inputSignal, Fs, win, overlap, nfft, ...
+    noiseDuration, suppressionStrength, ...
+    gateThreshold, minimumGain)
+
+    inputSignal = double(inputSignal(:));
+    inputSignal(~isfinite(inputSignal)) = 0;
+
+    if length(inputSignal) / Fs < noiseDuration
+        error(['Audio is shorter than noiseDuration. ', ...
+            'Reduce noiseDuration in the main script.']);
     end
 
-    % Continue the main loop only when the user selected Refilter.
-    % The assigned currentInput above is the last filtered output.
+    %% Estimate noise from the first noiseDuration seconds
+    noiseLength = min(round(noiseDuration * Fs), length(inputSignal));
+    noiseSegment = inputSignal(1:noiseLength);
+
+    %% STFT
+    [S, ~, ~] = stft(inputSignal, Fs, ...
+        'Window', win, ...
+        'OverlapLength', overlap, ...
+        'FFTLength', nfft);
+    N = stft(noiseSegment, Fs, ...
+        'Window', win, ...
+        'OverlapLength', overlap, ...
+        'FFTLength', nfft);
+
+    %% Estimate noise power
+    noisePower = median(abs(N).^2, 2);
+    noisePower = max(noisePower, 1e-12);
+    noisePowerMatrix = repmat(noisePower, 1, size(S, 2));
+    signalPower = abs(S).^2;
+
+    %% Wiener gain
+    cleanPower = max( ...
+        signalPower - suppressionStrength * noisePowerMatrix, 0);
+    wienerGain = cleanPower ./ ...
+        (cleanPower + suppressionStrength * noisePowerMatrix + eps);
+
+    %% Smooth gain
+    wienerGain = movmean(wienerGain, 3, 1);
+    wienerGain = movmean(wienerGain, 5, 2);
+
+    %% Spectral gate
+    gate = max(wienerGain - gateThreshold, 0) ./ ...
+        (1 - gateThreshold);
+    gate = min(max(gate, 0), 1);
+    combinedGain = wienerGain .* gate;
+    combinedGain = max(combinedGain, minimumGain);
+    combinedGain = min(combinedGain, 1);
+
+    %% Apply Wiener gain and reconstruct
+    enhancedSTFT = combinedGain .* S;
+    y = istft(enhancedSTFT, Fs, ...
+        'Window', win, ...
+        'OverlapLength', overlap, ...
+        'FFTLength', nfft);
+
+    y = real(y(:));
+    y(~isfinite(y)) = 0;
+
+    %% Align lengths
+    L = min(length(y), length(inputSignal));
+    y = y(1:L);
+    inputSignal = inputSignal(1:L);
+    if isempty(y) || max(abs(y)) < 1e-8
+        error('Output is nearly silent. Check the input audio.');
+    end
+
+    %% Loudness control
+    rmsIn = sqrt(mean(inputSignal.^2));
+    rmsOut = sqrt(mean(y.^2));
+    if rmsIn > 1e-8 && rmsOut > 1e-8
+        levelGain = rmsIn / rmsOut;
+        levelGain = min(levelGain, 1.5);
+        y = y * levelGain;
+    end
+
+    %% Prevent clipping
+    peak = max(abs(y));
+    if peak > 0.98
+        y = y * (0.98 / peak);
+    end
 end
