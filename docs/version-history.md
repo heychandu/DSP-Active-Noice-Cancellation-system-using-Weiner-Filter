@@ -69,17 +69,17 @@
 
 ## V0.4.0 — Preview, Refilter, Save, or Cancel
 
-**Goal:** Let the user listen to each filtered result before deciding what to do with it.
+**Goal:** Let the user listen to every filtered result before deciding what to do with it.
 
 ### Included
 - Play the current input first, then the filtered result.
-- Show original/current-pass and filtered waveform plots plus spectrum comparisons.
+- Show the original/current-pass input and filtered waveforms plus spectrum comparisons.
 - Display a Save / Refilter / Cancel popup after preview.
 - Save only the currently previewed filtered output to a selected WAV path.
 - Prevent overwriting the selected source file.
-- On Refilter, use the most recently filtered audio as the next pass input rather than going back to the original.
-- Re-prompt for filter parameters for each pass.
-- Preserve source audio and prior versions.
+- On Refilter, use the most recently filtered audio as the next pass input rather than returning to the original.
+- Re-prompt for filter parameters on each pass.
+- Preserve the source audio and prior versions, and keep the input duration unchanged.
 
 ### Known limitations
 - Multiple filtering passes can remove wanted content or create artifacts.
@@ -89,7 +89,7 @@
 ### Validation checklist
 - [ ] Original/current-pass input plays before the filtered preview.
 - [ ] Filtered preview plays before the action popup appears.
-- [ ] Save writes a new WAV file and does not overwrite the source.
+- [ ] Save writes a new WAV file without overwriting the source.
 - [ ] Refilter processes the previously filtered signal.
-- [ ] Cancel exits without writing a new output.
+- [ ] Cancel exits without saving a new output.
 - [ ] Repeated passes can be compared and stopped safely.

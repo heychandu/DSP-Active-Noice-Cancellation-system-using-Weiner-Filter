@@ -93,4 +93,4 @@ DSP-Active-Noice-Cancellation-system-using-Weiner-Filter/
 
 ## Version history
 
-See [`docs/version-history.md`](docs/version-history.md).
+See docs/version-history.md.
