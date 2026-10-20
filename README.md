@@ -2,9 +2,11 @@
 
 A MATLAB DSP project developed incrementally, version by version.
 
-## Current milestone: V0.2 — Noise Analysis
+## Current milestone: V0.3 — First Wiener Noise-Reduction Filter
 
-V0.2 extends the V0.1 audio-input baseline with waveform inspection and average single-sided frequency-spectrum analysis. It does not denoise or modify the source audio; the purpose is to understand the input before designing the filter.
+V0.3 adds an offline, frame-based spectral Wiener filter for a noisy audio recording. The filter estimates noise power from a user-selected **noise-only** part of the same recording, then attenuates frequency components estimated to be noise-dominated.
+
+This version is a single-recording noise-reduction experiment. It is not adaptive feedforward ANC with a separate reference microphone/input.
 
 ## Version roadmap
 
@@ -12,41 +14,56 @@ V0.2 extends the V0.1 audio-input baseline with waveform inspection and average 
 |---|---|---|
 | V0.1 | Load, inspect, plot, and play original audio | Implemented |
 | V0.2 | Waveform and frequency-spectrum analysis | Implemented |
-| V0.3 | First Wiener-filter noise-reduction implementation | Planned |
-| V0.4 | Preview original and processed audio; Save / Refilter / Cancel | Planned |
+| V0.3 | First Wiener-filter noise-reduction implementation | Implemented; test locally |
+| V0.4 | Preview original/processed audio; Save / Refilter / Cancel | Planned |
 | V0.5 | Live microphone processing experiment | Planned |
 | V1.0 | Tested and documented project release | Planned |
 
 ## Requirements
 
-- MATLAB with `audioread`, `audioplayer`/`soundsc`, and standard plotting functions (no extra Signal Processing Toolbox functions are intentionally used by V0.2).
-- A local audio recording you are permitted to use.
+- MATLAB with standard audio and plotting functions (`audioread`, `audioplayer`, `playblocking`, `fft`, `ifft`, and `inputdlg`).
+- A noisy recording that you are permitted to use.
+- A short section of the recording that contains **noise only** (no desired speech/music) for estimating the noise spectrum.
 - Git and GitHub Desktop for version management.
 
-## Run V0.2
+No separate Signal Processing Toolbox function is intentionally used in V0.3.
+
+## Run V0.3
 
 1. Open the repository in MATLAB.
-2. Set the Current Folder to `src/v0.2-noise-analysis`.
-3. Run `v02_noise_analysis.m`.
-4. Choose an audio file in the file picker.
-5. Inspect the waveform and frequency plot, then listen to the original recording.
+2. Set MATLAB's Current Folder to `src/v0.3-wiener-filter`.
+3. Run `v03_wiener_noise_reduction.m`.
+4. Select your noisy audio file.
+5. In the parameter dialog, enter the start time and duration of a noise-only segment and a minimum Wiener gain.
+6. Inspect the input/filtered waveform and spectrum plots, compare the RMS levels, then choose whether to play the original followed by the filtered audio.
 
-The script only reads the selected file. It does not overwrite the source or save a processed output.
+The script does **not** save or overwrite any audio file. Saving, refiltering, and cancel/save decisions will be added in V0.4.
 
-## V0.2 analysis details
+## How the V0.3 filter works
 
-- Prints sample rate, channel count, duration, peak amplitude, and RMS amplitude.
-- Displays the waveform for each audio channel.
-- Estimates an average single-sided amplitude spectrum using windowed frames with 50% overlap.
-- Reports the strongest non-DC frequency bin for each channel.
-- Uses a short-time frame size (up to 8192 samples) to avoid allocating a huge full-file FFT for long recordings.
+1. Reads the input recording.
+2. Estimates noise power per frequency bin from the selected noise-only segment.
+3. Processes the recording in overlapping, windowed frames.
+4. Estimates signal power as `max(observed power - noise power, 0)`.
+5. Forms a Wiener gain from the estimated signal and observed power, applies a configurable gain floor, and smooths the gain between adjacent frames.
+6. Reconstructs the filtered signal using inverse FFT and weighted overlap-add.
+7. Plots and reports a basic before/after comparison.
 
-### Interpreting the plots
+### Parameters
 
-- The waveform shows amplitude over time.
-- The spectrum shows how signal amplitude is distributed across frequency.
-- A prominent frequency peak is not necessarily noise; it can be part of speech, music, or the desired signal.
-- V0.2 does not calculate SNR or identify noise automatically. A clean reference signal or a defined noise-only segment is needed for meaningful quantitative comparisons.
+- **Noise-only segment start (seconds):** offset from the start of the recording.
+- **Noise-only segment duration (seconds):** enough samples for at least one analysis frame are required.
+- **Minimum gain (0 to 1):** raising this preserves more of the desired signal but usually leaves more noise; lowering it can suppress more noise but may damage speech/music.
+
+The default time values are examples only. Choose a section where the desired signal is absent. If the selected section contains speech or music, that content may be treated as noise and removed elsewhere.
+
+## Important limitations
+
+- The result depends on the chosen noise-only segment.
+- The spectral Wiener estimate can attenuate desired components that overlap the noise spectrum.
+- A smoother-sounding result is not guaranteed; listen and compare at a sensible playback level.
+- Peak/RMS changes alone do not prove better denoising. Quantitative SNR evaluation requires clean reference audio or another defensible test setup.
+- The script is an offline file-based filter, not real-time ANC.
 
 ## Repository structure
 
@@ -60,13 +77,11 @@ DSP-Active-Noice-Cancellation-system-using-Weiner-Filter/
 └── src/
     ├── v0.1-basic-audio/
     │   └── v01_load_and_play_audio.m
-    └── v0.2-noise-analysis/
-        └── v02_noise_analysis.m
+    ├── v0.2-noise-analysis/
+    │   └── v02_noise_analysis.m
+    └── v0.3-wiener-filter/
+        └── v03_wiener_noise_reduction.m
 ```
-
-## DSP terminology note
-
-Wiener filtering a noisy recording is commonly used for noise reduction. Active noise cancellation in the adaptive-filter sense usually uses a reference noise input and an adaptive controller. Later versions should describe the exact approach implemented and tested rather than using the terms interchangeably.
 
 ## Version history
 
