@@ -1,11 +1,5 @@
 %% Active Noise Cancellation Using a Wiener Filter
 % Version 0.3: Offline spectral Wiener noise reduction.
-%
-% Important:
-% - Select a segment that contains ONLY unwanted background noise.
-% - This is single-recording noise reduction, not adaptive ANC with a
-%   separate reference-noise input.
-% - This script does not save or overwrite the input file.
 
 clc;
 clear;
@@ -43,12 +37,9 @@ end
 durationSeconds = numSamples / sampleRate;
 
 %% 2. Configure frame and hop lengths
-% Target about 25 ms per frame, rounded to a power of two. Cap the frame
-% size so short recordings can still be processed.
 frameLength = 2^round(log2(0.025 * sampleRate));
 frameLength = max(128, min(2048, frameLength));
 
-% Keep at least about two frames in the recording.
 largestAllowedFrame = 2^floor(log2(floor(numSamples / 2)));
 frameLength = min(frameLength, largestAllowedFrame);
 
@@ -64,8 +55,6 @@ window = 0.54 - 0.46 * cos(2 * pi * (0:frameLength-1)' / ...
 windowSum = sum(window);
 
 %% 3. Ask for a noise-only segment and a gain floor
-% The noise estimate is only meaningful when this segment excludes the
-% wanted speech/music. Defaults are suggestions, not automatic detection.
 defaultNoiseDuration = min(0.5, max(frameLength / sampleRate, ...
     durationSeconds / 4));
 defaultNoiseDuration = min(defaultNoiseDuration, durationSeconds / 2);
@@ -146,9 +135,6 @@ for channel = 1:numChannels
 end
 
 %% 5. Apply the frame-based Wiener gain and weighted overlap-add
-% Frames begin before sample 1 and continue through the end of the signal.
-% Zero padding at the boundaries plus weighted overlap-add prevents length
-% changes and reduces edge artifacts. Hamming window endpoints are nonzero.
 
 frameStarts = (-frameLength + 1):hopLength:numSamples;
 numFrames = numel(frameStarts);
@@ -157,7 +143,6 @@ outputAccumulation = zeros(numSamples, numChannels);
 weightAccumulation = zeros(numSamples, 1);
 previousGain = ones(frameLength, numChannels);
 
-% Average windowed magnitude spectra for a before/after plot.
 numSpectrumBins = floor(frameLength / 2) + 1;
 inputMagnitudeSum = zeros(numSpectrumBins, numChannels);
 outputMagnitudeSum = zeros(numSpectrumBins, numChannels);
@@ -179,12 +164,10 @@ for frameIndex = 1:numFrames
         inputFFT = fft(windowedFrame);
         observedPower = abs(inputFFT).^2;
 
-        % Estimate desired-signal power and form a Wiener-like gain.
         estimatedSignalPower = max(observedPower - noisePower(:, channel), 0);
         rawGain = estimatedSignalPower ./ max(observedPower, eps);
         rawGain = max(min(rawGain, 1), minimumGain);
 
-        % Smooth gains over time to reduce rapid frame-to-frame changes.
         if frameIndex == 1
             smoothedGain = rawGain;
         else
