@@ -87,7 +87,7 @@ while true
         'Noise-only segment start time (seconds):', ...
         'Noise-only segment duration (seconds):', ...
         'Minimum Wiener gain (0 to 1):'};
-    defaults = {'0', sprintf('%.4f', defaultNoiseDuration), '0.05'};
+    defaults = {'0', sprintf('%.9f', defaultNoiseDuration), '0.05'};
 
     parametersValid = false;
     while ~parametersValid
