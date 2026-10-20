@@ -1,104 +1,68 @@
 # Active Noise Cancellation Using a Wiener Filter
 
-A MATLAB digital signal processing (DSP) project developed incrementally, version by version. The project focuses on **offline noise reduction for audio files** using preprocessing filters and an STFT-based Wiener-filter pipeline.
+A MATLAB DSP project developed version by version for **offline noise reduction of audio files**. The current version combines preprocessing filters, an STFT-based Wiener filter, and an interactive preview workflow.
 
-> **Current milestone: V0.5 — Configurable Noise Profile and Improved Preview Workflow**
+## Current version: V0.5
 
-V0.5 builds on the full V0.4 processing pipeline and adds a dialog for setting the noise-profile duration. It also ensures that each Refilter pass compares the **previously processed signal** with the newly processed result, uses a shared playback gain for the comparison, and prevents saving over the selected source file.
+V0.5 keeps a fixed 5-second noise profile and removes the noise-duration selection popup. It includes mono conversion, DC removal, a high-pass filter, optional hum notches, Wiener filtering, gain smoothing, spectral gating, level correction, and preview/save/refilter controls.
 
-## Features
-
-- Load supported WAV, FLAC, MP3, or M4A audio files.
-- Convert multichannel audio to mono for processing.
-- Remove DC offset and apply a 55 Hz high-pass filter.
-- Optionally reduce mains hum and harmonics at 50 Hz, 100 Hz, 150 Hz, and 200 Hz when below Nyquist.
-- Configure the duration of the noise-profile prefix through a dialog.
-- Apply STFT-based Wiener filtering, gain smoothing, a spectral gate, and a minimum gain.
-- Apply limited RMS level correction and peak protection.
-- Preview the original/current input, then the filtered result.
-- Choose Save, Refilter, or Cancel after preview.
-- On Refilter, process the latest filtered output instead of returning to the original.
-- Compare waveforms and spectrograms.
+After the first pass, the program plays the original audio followed by the filtered result. After **Refilter**, it plays the last filtered result followed by the newly filtered signal. The next pass starts from the previous filtered output.
 
 ## Requirements
 
-- MATLAB.
-- Signal Processing Toolbox functions used by the script, including `butter`, `filtfilt`, `stft`, `istft`, `hamming`, and `spectrogram`.
-- A recording long enough for the selected STFT window and noise-profile duration.
-- GitHub Desktop for visual version control, if desired.
+- MATLAB with Signal Processing Toolbox functions such as `butter`, `filtfilt`, `stft`, `istft`, `hamming`, and `spectrogram`.
+- An audio file supported by `audioread` and at least 5 seconds long by default.
+- The first five seconds should contain background noise with little or no wanted speech/music.
 
 ## Run V0.5
 
-1. Open the repository in MATLAB.
-2. Set MATLAB's Current Folder to `src/v0.5-configurable-noise-profile`.
-3. Run `v05_wiener_noise_reduction.m`.
-4. Select your noisy recording.
-5. Enter the duration, in seconds, of the **noise-only prefix** to use for estimating the noise profile.
-6. Review the playback: the initial comparison is original then first-pass output; subsequent comparisons use previous-pass output then new output.
-7. Choose **Save**, **Refilter**, or **Cancel** after each comparison.
+1. Open MATLAB and set the Current Folder to `src/v0.5-configurable-noise-profile`.
+2. Run `v05_wiener_noise_reduction.m`.
+3. Select an audio file.
+4. Listen to the original and filtered results.
+5. Choose **Save**, **Refilter**, or **Cancel**.
 
-### Decision dialog
+- **Save:** export the current processed result to a chosen file.
+- **Refilter:** run another filter pass on the latest filtered output.
+- **Cancel:** exit without saving the current result.
 
-- **Save:** Choose an output filename for the current result. The selected source file is protected against direct overwrite.
-- **Refilter:** Apply another pass to the latest processed signal, using the gentler refilter settings.
-- **Cancel:** Exit without saving the current result.
+The save workflow prevents choosing the exact source path as the output path. WAV is the most portable format; MP3 writing support depends on the installed MATLAB version and platform.
 
-If the Save dialog is cancelled or a save attempt fails, the program returns to the preview/decision workflow.
+## Processing steps
 
-## Processing pipeline
+1. Convert audio to mono and remove its mean.
+2. Apply a 55 Hz high-pass filter and optional 50 Hz hum/harmonic notch filters.
+3. Estimate noise power from the first five seconds of the current input.
+4. Apply an STFT-based Wiener gain, smooth it, apply a spectral gate, and enforce a minimum gain.
+5. Reconstruct with inverse STFT, apply limited RMS level correction, and prevent peaks above the configured limit.
+6. Preview and let the user save, refilter, or cancel.
 
-1. Read and validate the selected recording.
-2. Convert multichannel audio to mono and remove its mean.
-3. Apply a third-order Butterworth high-pass filter at 55 Hz.
-4. Optionally apply notch filters for mains hum and selected harmonics.
-5. Ask for the duration of the noise-profile prefix at the start of the current input (5 seconds by default, shortened automatically for shorter recordings).
-6. Estimate noise power from the chosen prefix using the STFT.
-7. Apply a Wiener gain, smooth it across frequency and time, apply a spectral gate, and enforce a minimum gain.
-8. Reconstruct the audio with inverse STFT, apply limited RMS level correction, and protect against clipping.
-9. Preview the comparison, then let the user save, refilter, or cancel.
+## Limitations
 
-## Important tuning notes
-
-- The selected noise-profile prefix always starts at the **beginning of the current input**. This version allows changing its duration, not its start offset.
-- That prefix should contain background noise with little or no wanted speech/music. If the recording starts with speech, the noise estimate can include desired sound and cause it to be attenuated.
-- `initialSuppression`, `initialGateThreshold`, and `initialMinimumGain` control the first pass. Refilter uses the gentler `refilter...` settings.
-- The same playback gain is used for both clips in each comparison, so playback does not independently normalize the processed clip to sound louder.
-- Repeated filtering can progressively damage desired audio. Listen to every pass and stop when the result is acceptable.
-- Stereo input is averaged to mono; stereo spatial information is not retained.
-- Lower RMS alone does not prove better denoising. Quantitative SNR evaluation requires clean reference audio or another clearly defined evaluation setup.
-- WAV is the most portable output format. MP3 output support depends on the MATLAB version and platform.
-- This is offline file-based noise reduction, not adaptive feedforward ANC with a separate reference-noise input.
+This is offline, single-recording noise reduction, not real-time adaptive ANC with a separate reference-noise input. The noise profile is always taken from the first five seconds of the current input; if speech or music is present there, the filter may suppress wanted content. Repeated filtering can progressively damage the signal. Listen to each pass before saving. A lower RMS level alone does not prove better denoising.
 
 ## Version roadmap
 
 | Version | Milestone | Status |
 |---|---|---|
-| V0.1 | Load, inspect, plot, and play original audio | Implemented |
+| V0.1 | Basic audio loading and playback | Implemented |
 | V0.2 | Waveform and frequency-spectrum analysis | Implemented |
-| V0.3 | Initial offline Wiener-filter baseline | Implemented |
-| V0.4 | Preprocessing, Wiener filtering, preview, refilter, and saving | Implemented |
-| V0.5 | Configurable noise-profile duration and improved comparison behavior | Implemented; validate locally |
-| V0.6 | Filter parameter tuning and repeatable quality evaluation | Planned |
-| V1.0 | Tested and documented project release | Planned |
+| V0.3 | Initial Wiener-filter baseline | Implemented |
+| V0.4 | Preprocessing and preview/save/refilter workflow | Implemented |
+| V0.5 | Cleaned preview workflow with fixed 5-second noise profile | Implemented; test locally |
+| V0.6 | Filter tuning and repeatable quality evaluation | Planned |
+| V1.0 | Tested and documented release | Planned |
 
-## Repository structure
+## Project structure
 
 ```text
-DSP-Active-Noice-Cancellation-system-using-Weiner-Filter/
-├── README.md
-├── LICENSE
-├── .gitignore
-├── docs/
-│   └── version-history.md
-└── src/
-    ├── v0.1-basic-audio/
-    ├── v0.2-noise-analysis/
-    ├── v0.3-wiener-filter/
-    ├── v0.4-preview-refilter-save/
-    └── v0.5-configurable-noise-profile/
-        └── v05_wiener_noise_reduction.m
+src/
+├── v0.1-basic-audio/
+├── v0.2-noise-analysis/
+├── v0.3-wiener-filter/
+├── v0.4-preview-refilter-save/
+└── v0.5-configurable-noise-profile/
+    └── v05_wiener_noise_reduction.m
 ```
 
-## Version history
-
-See [`docs/version-history.md`](docs/version-history.md).
+See [`docs/version-history.md`](docs/version-history.md) for milestone details.
