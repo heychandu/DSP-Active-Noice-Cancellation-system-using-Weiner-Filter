@@ -24,19 +24,19 @@
 ## V0.5.0 — Cleaned preview workflow with fixed noise profile
 
 ### Changes
-- Remove the noise-duration selection popup; use a fixed `noiseDuration = 5` seconds.
-- Keep the original processing settings and pass-specific Wiener parameters.
+- Remove the noise-duration selection popup; use a fixed noiseDuration = 5 seconds.
+- Keep the processing settings and pass-specific Wiener parameters.
 - Keep shared-gain playback comparisons.
 - On the first pass, preview original then filtered audio.
 - On Refilter, preview the previous filtered output then the new output.
 - Refilter from the latest processed output.
 - Prevent direct overwrite of the selected source path.
-- Remove redundant comments and the unreachable `break` after the `switch` statement.
+- Remove redundant comments and the unreachable break after the switch statement.
 
 ### Requirements and limitations
-- Requires MATLAB Signal Processing Toolbox functions including `butter`, `filtfilt`, `stft`, `istft`, and `spectrogram`.
+- Requires MATLAB Signal Processing Toolbox functions including butter, filtfilt, stft, istft, and spectrogram.
 - The first five seconds of each pass are used as the noise profile and should contain little or no desired speech/music.
-- Files shorter than five seconds stop with an error unless `noiseDuration` is changed in the script.
+- Files shorter than five seconds stop with an error unless noiseDuration is changed in the script.
 - Repeated filtering can damage wanted content; listen before saving.
 - This is offline file-based noise reduction, not live-microphone or reference-input ANC.
 
