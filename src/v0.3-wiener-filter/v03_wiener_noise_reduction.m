@@ -173,7 +173,7 @@ for frameIndex = 1:numFrames
 
     for channel = 1:numChannels
         inputFrame = zeros(frameLength, 1);
-        inputFrame(validMask) = audioIn(validSourceIndices, channel);
+        inputFrame(validWindowPositions) = audioIn(validSourceIndices, channel);
 
         windowedFrame = inputFrame .* window;
         inputFFT = fft(windowedFrame);
