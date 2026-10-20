@@ -1,0 +1,23 @@
+# MATLAB generated files
+*.asv
+*.m~
+slprj/
+codegen/
+*.mex*
+*.mat
+
+# MATLAB autosave and editor files
+*.mlx.autosave
+
+# Audio recordings and generated output (add only small, permitted samples intentionally)
+*.wav
+*.flac
+*.mp3
+*.m4a
+*.aac
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
