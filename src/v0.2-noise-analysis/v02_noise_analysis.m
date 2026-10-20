@@ -1,7 +1,5 @@
 %% Active Noise Cancellation Using a Wiener Filter
 % Version 0.2: Time-domain and frequency-domain audio analysis.
-% This is an analysis-only step. It does NOT perform noise reduction.
-% The selected audio file is read only and is never overwritten.
 
 clc;
 clear;
@@ -69,8 +67,6 @@ for channel = 1:numChannels
 end
 
 %% 4. Prepare the waveform plot
-% Decimate only the displayed points for long recordings. The audio itself
-% is unchanged, and the spectral analysis below uses the full recording.
 maxPlotPoints = 200000;
 displayStride = max(1, ceil(numSamples / maxPlotPoints));
 sampleIndices = 1:displayStride:numSamples;
@@ -82,9 +78,6 @@ for channel = 1:numChannels
 end
 
 %% 5. Estimate average single-sided amplitude spectrum
-% Use a frame length up to 8192 samples and 50% overlap. This avoids a
-% single very large FFT for long recordings. The Hann window is generated
-% directly so a separate window-design toolbox function is not needed.
 
 frameLength = min(8192, numSamples);
 nfft = 2^nextpow2(frameLength);
@@ -122,14 +115,12 @@ for channel = 1:numChannels
         lastSample = firstSample + frameLength - 1;
         frame = audioIn(firstSample:lastSample, channel);
 
-        % Remove frame DC offset for a clearer spectrum view only.
         frame = frame - mean(frame);
         windowedFrame = frame .* window;
 
         transformedFrame = fft(windowedFrame, nfft);
         singleSided = abs(transformedFrame(1:numFrequencyBins)) / windowSum;
 
-        % Convert the two-sided FFT magnitude to a single-sided amplitude.
         if rem(nfft, 2) == 0
             if numFrequencyBins > 2
                 singleSided(2:end-1) = 2 * singleSided(2:end-1);
@@ -143,7 +134,6 @@ for channel = 1:numChannels
 
     averageSpectrum(:, channel) = accumulatedSpectrum / numFrames;
 
-    % Ignore DC when reporting the strongest frequency bin.
     if numFrequencyBins > 1
         [~, relativePeakIndex] = max(averageSpectrum(2:end, channel));
         peakIndex = relativePeakIndex + 1;
