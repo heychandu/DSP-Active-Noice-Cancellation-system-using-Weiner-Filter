@@ -1,121 +1,129 @@
 # Version History
 
-This document records the implemented milestones and the next planned work for the project.
+This document records the implemented milestones and the planned next steps for the file-based Wiener-filter project.
 
 ## V0.1.0 — Basic audio input
 
-**Goal:** Create a repeatable baseline before applying noise reduction.
+**Goal:** Establish a repeatable baseline before adding noise reduction.
 
 ### Included
 - Select and load an audio file.
-- Display basic audio properties, including sample rate, duration, sample count, channel count, peak amplitude, and RMS amplitude.
-- Plot the original waveform.
-- Play the original recording.
+- Display basic audio properties such as sample rate, duration, sample count, channel count, peak amplitude, and RMS amplitude.
+- Plot and play the original recording.
 - Leave the input file unchanged.
 
 ### Validation checklist
 - [ ] Script runs without errors.
-- [ ] File picker opens and accepts a supported audio file.
+- [ ] Audio file selection works.
 - [ ] Waveform plot appears.
-- [ ] Audio plays and is audible.
+- [ ] Audio plays.
 - [ ] Original file remains unchanged.
 
 ## V0.2.0 — Waveform and frequency-spectrum analysis
 
-**Goal:** Inspect the input signal in time and frequency before designing the denoising stage.
+**Goal:** Inspect the input signal in time and frequency before filtering.
 
 ### Included
 - Plot the input waveform.
 - Estimate and plot an average single-sided amplitude spectrum.
-- Report peak and RMS amplitude for each channel.
-- Report the strongest non-DC spectrum bin.
-- Play the original recording.
-- Leave the input file unchanged.
+- Report peak/RMS amplitude and strongest non-DC spectrum bin.
+- Play the original audio.
+- Do not modify the source file.
 
 ### Notes
-- A prominent spectral peak is not automatically noise; it may be part of the desired signal.
-- Spectrum magnitude is not, by itself, an SNR measurement.
+- A prominent spectral peak is not automatically noise.
+- Spectrum magnitude alone is not an SNR measurement.
 
 ### Validation checklist
 - [ ] Script runs without errors.
-- [ ] Waveform and frequency-spectrum plots appear.
-- [ ] Printed audio measurements are plausible.
+- [ ] Waveform and spectrum plots appear.
+- [ ] Printed measurements are plausible.
 - [ ] Original audio plays.
-- [ ] Original file remains unchanged.
+- [ ] Source file remains unchanged.
 
 ## V0.3.0 — Initial Wiener-filter baseline
 
-**Goal:** Introduce offline Wiener noise reduction using a selected noise-only segment.
+**Goal:** Introduce offline Wiener noise reduction from a selected noise-only segment.
 
 ### Included
 - Estimate noise power from overlapping FFT frames.
-- Apply a frame-based Wiener-like gain with gain smoothing.
-- Reconstruct the processed signal using inverse FFT and weighted overlap-add.
-- Compare the original and processed waveforms and spectra.
+- Apply a frame-based Wiener-like gain with smoothing.
+- Reconstruct with inverse FFT and weighted overlap-add.
+- Plot input and processed waveforms/spectra.
 - Print input and processed peak/RMS measurements.
-- Play the original and processed signals for comparison.
-- Do not save or overwrite the input file.
+- Preview the original and processed audio.
+- Do not save or overwrite the source.
 
 ### Known limitations
-- The estimated noise region should not contain desired speech or music.
+- Noise estimate depends on the selected noise-only section.
 - Desired sound can be attenuated if it overlaps the estimated noise spectrum.
-- The output must be reviewed by listening; lower RMS alone does not prove better denoising.
+- Lower RMS does not, alone, prove better denoising.
 
-### Validation checklist
-- [ ] Script runs without errors.
-- [ ] Valid noise-only segment parameters are accepted.
-- [ ] Waveform and spectrum comparisons appear.
-- [ ] Original and processed audio can be compared.
-- [ ] Input file remains unchanged.
+## V0.4.0 — Full preprocessing and review workflow
 
-## V0.4.0 — Full filtering and review workflow
-
-**Goal:** Integrate preprocessing, Wiener filtering, and the user-controlled preview/save loop.
+**Goal:** Integrate the preprocessing filters, STFT Wiener processing, and user-controlled review process.
 
 ### Included
-- Convert multichannel audio to mono and remove its mean.
+- Convert multichannel input to mono and remove the mean.
 - Apply a third-order Butterworth high-pass filter at 55 Hz.
-- Optionally apply 50 Hz mains-hum notch filters and selected harmonics.
-- Estimate a noise profile from the first `noiseDuration` seconds of the current input (5 seconds by default).
-- Apply STFT-based Wiener gain estimation, gain smoothing, spectral gating, and a minimum-gain floor.
+- Optionally apply manual hum-notch filters at 50 Hz and selected harmonics.
+- Estimate the noise profile from the first five seconds by default.
+- Apply STFT-based Wiener gain, gain smoothing, a spectral gate, and a minimum gain.
 - Apply limited RMS level correction and peak protection.
-- Play the original/current input first and the processed result second.
-- Display a **Save / Refilter / Cancel** decision dialog after the previews.
-- On the first pass, compare the original with the first processed result.
-- On Refilter, use the previous processed output as the next pass input and preview baseline.
-- Save the current processed signal to a new output path and protect the selected source path.
-- Display final waveform and spectrogram comparisons.
+- Play comparison signals and show Save / Refilter / Cancel.
+- Save the current result to a selected output path, with a source-overwrite check.
+- Plot final waveforms and spectrograms.
+
+### Known limitations
+- The first five seconds should contain little or no wanted speech/music.
+- Repeated filtering can progressively damage wanted content.
+- Uses Signal Processing Toolbox functions including `butter`, `filtfilt`, `stft`, `istft`, and `spectrogram`.
+- This is offline file-based noise reduction.
+
+## V0.5.0 — Configurable noise profile and improved preview workflow
+
+**Goal:** Make the filter easier to apply to recordings with different durations and make Refilter comparisons more meaningful.
+
+### Changes based on the provided MATLAB implementation
+- Keep the existing mono conversion, 55 Hz high-pass filter, optional mains-hum notches, STFT Wiener filter, gain smoothing, spectral gate, level control, and clipping protection.
+- Ask the user for the duration of the noise-profile prefix rather than requiring a hard-coded five seconds.
+- Keep the noise-profile region at the start of the current input; only its duration is configurable.
+- On the first pass, play the original recording and then the first processed result.
+- After Refilter, play the previous processed signal and then the new result.
+- Use the latest processed signal as the input to the next Refilter pass.
+- Use a shared playback gain for both signals in each comparison to avoid independent automatic normalization.
+- Prevent the Save action from writing directly over the selected source path.
+- Continue to support waveform and spectrogram comparisons.
 
 ### Requirements and limitations
-- Uses Signal Processing Toolbox functions such as `butter`, `filtfilt`, `stft`, `istft`, and `spectrogram`.
-- The default noise-profile region is the first five seconds and should contain little or no wanted speech/music.
-- The input is converted to mono.
-- Repeated filtering can damage wanted content; review every pass before saving.
-- WAV is the most portable output format; other format support may depend on MATLAB and platform.
+- The selected prefix should contain noise with little or no wanted speech/music.
+- The filter requires Signal Processing Toolbox functions.
+- Refiltering may progressively remove desired content; inspect each pass before saving.
+- File-based/offline processing only; no live-microphone feature is included.
 
 ### Validation checklist
 - [ ] Runs on the target MATLAB version.
-- [ ] High-pass and optional notch filtering run.
-- [ ] First preview plays original then the processed result.
-- [ ] Refilter preview plays the previous processed signal then the newly processed result.
-- [ ] Refilter starts from the previous processed signal.
-- [ ] Save writes the expected output file.
-- [ ] Save cannot overwrite the selected source file.
-- [ ] Cancelling exits without saving the current result.
+- [ ] Noise-profile duration dialog accepts valid values and rejects invalid values.
+- [ ] First comparison plays original then filtered audio.
+- [ ] Refilter comparison plays the previous processed signal then the new result.
+- [ ] Refilter operates on the previously filtered signal.
+- [ ] Save writes the selected output format successfully.
+- [ ] Source file cannot be overwritten through the Save dialog.
+- [ ] Cancel exits without saving the current result.
 - [ ] Waveform and spectrogram plots appear.
 
-## V0.5.0 — Filter tuning and quality evaluation (planned)
+## V0.6.0 — Filter tuning and repeatable quality evaluation (planned)
 
-**Planned goal:** Make denoising results easier to tune and evaluate.
+**Planned goal:** Improve the ability to assess parameter changes.
 
-Possible work:
-- Improve selection of the noise-profile region.
-- Compare multiple parameter settings systematically.
-- Record playback observations and objective metrics where suitable clean reference audio is available.
-- Document known trade-offs between residual noise and desired-signal preservation.
+Potential work:
+- Add a clearer way to select the noise-profile start time as well as duration.
+- Compare filter parameter settings in a repeatable test.
+- Record listening observations and suitable metrics when clean reference audio is available.
+- Document artifacts and the trade-off between residual noise and desired-signal preservation.
 
 ## V1.0.0 — Stable documented release (planned)
 
-**Planned goal:** Publish a tested version with consistent usage instructions, final examples, and documented validation results.
+**Planned goal:** Publish a tested release with clear setup instructions, tested examples, and documented validation results.
 
-The release should only be marked stable after the code is run and evaluated in the target MATLAB environment.
+Mark the project stable only after running and evaluating it in the target MATLAB environment.
