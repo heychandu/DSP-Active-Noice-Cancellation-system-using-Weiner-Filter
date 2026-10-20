@@ -2,7 +2,7 @@
 
 **Author:** [heychandur](https://github.com/heychandu)  
 **Language:** MATLAB  
-**Current version:** V0.5
+**Current version:** [V0.5](VERSION.md)
 
 Offline audio-file noise reduction using an STFT-based Wiener-filter pipeline. The project evolves from basic audio inspection to configurable noise reduction with preview, refilter, and save controls.
 
@@ -83,7 +83,7 @@ The save dialog supports WAV and MP3 choices; actual encoding support depends on
 └── README.md
 ```
 
-See [docs/version-history.md](docs/version-history.md) for the milestone-by-milestone history.
+See [VERSION.md](VERSION.md) for the current version and [docs/version-history.md](docs/version-history.md) for the milestone-by-milestone history.
 
 ## Author
 
