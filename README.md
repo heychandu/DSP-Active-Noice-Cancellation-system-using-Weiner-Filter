@@ -80,7 +80,8 @@ The save dialog supports WAV and MP3 choices; actual encoding support depends on
 │   └── v0.5-configurable-noise-profile/
 ├── .gitignore
 ├── LICENSE
-└── README.md
+├── README.md
+└── VERSION.md
 ```
 
 See [VERSION.md](VERSION.md) for the current version and [docs/version-history.md](docs/version-history.md) for the milestone-by-milestone history.
