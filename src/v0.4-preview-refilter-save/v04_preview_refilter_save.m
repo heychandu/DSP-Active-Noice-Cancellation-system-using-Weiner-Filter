@@ -3,13 +3,6 @@ clear;
 close all;
 
 %% V0.4: Wiener Noise Reduction with Preview / Refilter / Save / Cancel
-% This is offline, single-recording noise reduction. It is not adaptive
-% feedforward ANC with a separate reference-noise input.
-%
-% The first pass previews the original audio, then the filtered result.
-% After Refilter, it previews the previously denoised signal, then the
-% newly processed signal. Refilter always starts from the latest output.
-% The source audio file is never overwritten.
 
 %% 1. LOAD AUDIO
 
@@ -36,7 +29,6 @@ if isempty(x) || any(~isfinite(x(:)))
     error('Invalid audio file.');
 end
 
-% Convert stereo audio to mono
 if size(x, 2) > 1
     xMono = mean(x, 2);
 else
@@ -89,8 +81,6 @@ end
 filteredInput = x;
 
 %% 4. NOISE PROFILE SETTINGS
-% The first 5 seconds should ideally contain background noise with little
-% or no desired speech/music. This profile is re-estimated for each pass.
 
 noiseDuration = 5;
 
@@ -109,12 +99,10 @@ win = hamming(winLength, 'periodic');
 
 %% 6. WIENER FILTER SETTINGS
 
-% Initial pass settings
 initialSuppression = 1.8;
 initialGateThreshold = 0.25;
 initialMinimumGain = 0.10;
 
-% Refilter settings (gentler to preserve speech)
 refilterSuppression = 1.25;
 refilterGateThreshold = 0.12;
 refilterMinimumGain = 0.25;
@@ -132,16 +120,12 @@ processedAudio = runWienerPass( ...
 
 passNumber = 1;
 
-% First preview compares the raw original with the first filtered result.
-% On each Refilter choice this variable is replaced with the previous
-% filtered output, so the next preview does not return to the original.
 previewInput = original;
 
 %% 8. PREVIEW AND USER DECISION LOOP
 
 while true
 
-    % Ensure playback audio is finite and nonempty
     if isempty(processedAudio) || ...
             any(~isfinite(processedAudio)) || ...
             max(abs(processedAudio)) < 1e-8
@@ -153,9 +137,6 @@ while true
 
     %% Play the input for this comparison
 
-    % Use one shared playback scale for both clips. soundsc normalizes
-    % each clip separately and can make a quiet output sound misleadingly
-    % loud, so sound() is used with the same attenuation for both.
     comparisonPeak = max([abs(previewInput(:)); abs(processedAudio(:))]);
     playbackGain = 1;
 
@@ -210,14 +191,12 @@ while true
                 'Advanced_Noise_Reduced.wav');
 
             if isequal(saveFile, 0)
-                % Return to preview and decision popup
                 disp('Save dialog cancelled. Returning to preview.');
                 continue;
             end
 
             outputFile = fullfile(savePath, saveFile);
 
-            % Protect the selected source file against accidental overwrite.
             if strcmpi(outputFile, sourcePath)
                 errordlg(['The output path matches the original input file. ', ...
                     'Choose a different filename.'], ...
@@ -244,7 +223,6 @@ while true
                     'Could not save the audio:\n%s', ME.message), ...
                     'Save Error');
 
-                % Return to preview if saving failed
                 continue;
             end
 
@@ -266,8 +244,6 @@ while true
 
             fprintf('Refilter pass %d completed.\n', passNumber);
 
-            % Loop repeats: play previous denoised audio, play new output,
-            % then display the decision popup again.
             continue;
 
         otherwise
@@ -279,7 +255,6 @@ while true
 
     end
 
-    % Exit after Save or Cancel
     break;
 
 end
@@ -288,7 +263,6 @@ end
 
 if exist('processedAudio', 'var') && ~isempty(processedAudio)
 
-    % Compare the first-pass raw original and the latest filtered result.
     L = min(length(original), length(processedAudio));
 
     figure('Color', 'w', 'Name', 'Noise Reduction Comparison');
@@ -324,7 +298,6 @@ end
 disp('Finished.');
 
 %% ============================================================
-% LOCAL FUNCTION: ONE WIENER FILTER PASS
 %% ============================================================
 
 function y = runWienerPass( ...
@@ -421,7 +394,6 @@ function y = runWienerPass( ...
     if rmsIn > 1e-8 && rmsOut > 1e-8
         levelGain = rmsIn / rmsOut;
 
-        % Limit amplification to avoid boosting residual noise
         levelGain = min(levelGain, 1.5);
         y = y * levelGain;
     end

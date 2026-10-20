@@ -2,89 +2,89 @@
 
 **Author:** [heychandur](https://github.com/heychandu)  
 **Language:** MATLAB  
-**Current version:** V0.5 — Final version for the current project
+**Current version:** [V0.5](VERSION.md)
 
-This project demonstrates offline audio-file noise reduction using preprocessing filters and an STFT-based Wiener-filter pipeline. V0.5 is the final version for now; no live-microphone feature is included.
+Offline audio-file noise reduction using an STFT-based Wiener-filter pipeline. The project evolves from basic audio inspection to configurable noise reduction with preview, refilter, and save controls.
 
-## Features
+> **Scope:** This project processes a recorded audio file. It is not real-time active noise cancellation with a separate reference microphone.
 
-- Load an audio file supported by MATLAB's `audioread`.
-- Convert stereo input to mono and remove its DC offset.
-- Apply a 55 Hz high-pass filter.
-- Optionally reduce 50 Hz mains hum and selected harmonics using notch filters.
-- Estimate noise power from the first five seconds of the current input.
-- Apply STFT-based Wiener filtering with gain smoothing, spectral gating, and a minimum-gain floor.
-- Apply limited RMS level correction and peak protection.
-- Preview the comparison audio, then choose **Save**, **Refilter**, or **Cancel**.
-- Refilter from the most recently processed signal rather than restarting from the original.
+## Versions
+
+| Version | Purpose | Script |
+|---|---|---|
+| V0.1 | Load, inspect, plot, and play audio | [v01_load_and_play_audio.m](src/v0.1-basic-audio/v01_load_and_play_audio.m) |
+| V0.2 | Analyze waveform and average spectrum | [v02_noise_analysis.m](src/v0.2-noise-analysis/v02_noise_analysis.m) |
+| V0.3 | Initial frame-based Wiener-filter experiment | [v03_wiener_noise_reduction.m](src/v0.3-wiener-filter/v03_wiener_noise_reduction.m) |
+| V0.4 | Filtering with preview/save/refilter workflow | [v04_preview_refilter_save.m](src/v0.4-preview-refilter-save/v04_preview_refilter_save.m) |
+| V0.5 | Current version: fixed five-second noise profile | [v05_wiener_noise_reduction.m](src/v0.5-configurable-noise-profile/v05_wiener_noise_reduction.m) |
+
+## Features in V0.5
+
+- Load supported audio files with MATLAB's `audioread`.
+- Convert multichannel input to mono and remove DC offset.
+- Apply a 55 Hz high-pass filter and optional 50 Hz mains-hum harmonic notch filters.
+- Estimate a noise profile from the first five seconds of the current input.
+- Apply STFT-based Wiener filtering, gain smoothing, spectral gating, level correction, and peak protection.
+- Play the input and filtered output in sequence before asking what to do.
+- Choose **Save**, **Refilter**, or **Cancel** after preview.
+- Refilter the most recently processed output, not the original recording.
 - Display waveform and spectrogram comparisons.
+- Prevent saving over the selected source file.
 
 ## Requirements
 
-- MATLAB with Signal Processing Toolbox functions used by the script, including `butter`, `filtfilt`, `stft`, `istft`, `hamming`, and `spectrogram`.
-- An audio file supported by `audioread`.
-- At least five seconds of audio with the default `noiseDuration = 5` setting.
+- MATLAB with Signal Processing Toolbox functions used by the scripts, including `butter`, `filtfilt`, `stft`, `istft`, `hamming`, and `spectrogram`.
+- An audio recording supported by MATLAB's `audioread`.
+- For V0.5's default settings, an input of at least five seconds.
 
-## Run the project
+## Run V0.5
 
-1. Open the repository in MATLAB.
-2. Set the Current Folder to `src/v0.5-configurable-noise-profile`.
+1. Clone or download this repository.
+2. Open MATLAB and set the Current Folder to `src/v0.5-configurable-noise-profile`.
 3. Run `v05_wiener_noise_reduction.m`.
 4. Select the noisy audio file.
-5. Listen to the input and processed audio previews.
-6. Choose **Save**, **Refilter**, or **Cancel** in the popup.
+5. Listen to the original and processed previews.
+6. Choose **Save** to export the result, **Refilter** to run another pass, or **Cancel** to exit without saving.
 
-### Popup choices
+The save dialog supports WAV and MP3 choices; actual encoding support depends on the MATLAB version and system. WAV is a good default for compatibility.
 
-- **Save:** select a destination and write the current filtered result.
-- **Refilter:** process the latest filtered result with the gentler refilter parameters.
-- **Cancel:** exit without saving the current result.
+## Processing overview
 
-The save workflow checks that the output path is different from the selected source path. WAV is the most portable output format; MP3 writing support depends on the installed MATLAB version and platform.
+1. Read and validate the selected recording.
+2. Convert the input to mono and remove its mean.
+3. Apply high-pass filtering and optional mains-hum notch filters.
+4. Estimate noise from the first five seconds of the current pass.
+5. Apply the STFT-based Wiener gain and spectral gate.
+6. Reconstruct the output, apply limited level correction, and prevent excessive peaks.
+7. Play the comparison, then save, refilter, or cancel.
 
-## Processing pipeline
+## Important limitations
 
-1. Read and validate the audio.
-2. Convert multichannel audio to mono and remove its mean.
-3. Apply a third-order Butterworth high-pass filter at 55 Hz.
-4. Optionally apply notch filters at 50 Hz and selected harmonics below the Nyquist frequency.
-5. Estimate the noise profile from the first five seconds of the current input.
-6. Apply the STFT-based Wiener gain, smooth it across frequency and time, apply a spectral gate, and enforce the minimum gain.
-7. Reconstruct the audio with inverse STFT, apply limited RMS level correction, and prevent excessive peaks.
-8. Preview, then let the user save, refilter, or cancel.
-
-## Important notes and limitations
-
-- The first five seconds of the current input are used for noise estimation. This segment should contain background noise with little or no desired speech or music. If desired audio is present, the filter may suppress it.
-- Refilter passes use the previous filtered result as their input. Repeated filtering can progressively degrade wanted audio, so listen to each pass before saving.
-- The program converts stereo audio to mono, so stereo spatial information is not retained.
-- A lower RMS level alone does not prove better noise reduction. Use listening tests and, when available, a suitable clean reference for quantitative evaluation.
-- This is offline, single-recording noise reduction. It is not real-time adaptive ANC using a separate reference-noise input.
-- The MATLAB code should be run and checked in the target MATLAB installation before claiming measured performance.
-
-## Development history
-
-| Version | Work completed |
-|---|---|
-| V0.1 | Basic audio loading, waveform plotting, and playback |
-| V0.2 | Waveform and frequency-spectrum analysis |
-| V0.3 | Initial Wiener-filter baseline |
-| V0.4 | Preprocessing and preview/save/refilter workflow |
-| V0.5 | Cleaned preview workflow, fixed five-second noise profile, and source-path protection |
+- The first five seconds are used as the noise estimate and should contain mostly background noise. Speech or music in this segment may be suppressed.
+- Repeated refiltering can damage desired audio. Listen to each pass before saving.
+- Stereo input is reduced to mono, so stereo spatial information is not retained.
+- Lower output volume alone does not prove better noise reduction. Evaluate both by listening and, where possible, against a clean reference.
+- Performance has not been claimed as validated on every MATLAB release. Run the script in your target MATLAB environment.
 
 ## Project structure
 
 ```text
-src/
-├── v0.1-basic-audio/
-├── v0.2-noise-analysis/
-├── v0.3-wiener-filter/
-├── v0.4-preview-refilter-save/
-└── v0.5-configurable-noise-profile/
-    └── v05_wiener_noise_reduction.m
+.
+├── docs/
+│   └── version-history.md
+├── src/
+│   ├── v0.1-basic-audio/
+│   ├── v0.2-noise-analysis/
+│   ├── v0.3-wiener-filter/
+│   ├── v0.4-preview-refilter-save/
+│   └── v0.5-configurable-noise-profile/
+├── .gitignore
+├── LICENSE
+├── README.md
+└── VERSION.md
 ```
 
-For details on each milestone, see [`docs/version-history.md`](docs/version-history.md).
+See [VERSION.md](VERSION.md) for the current version and [docs/version-history.md](docs/version-history.md) for the milestone-by-milestone history.
 
 ## Author
 
